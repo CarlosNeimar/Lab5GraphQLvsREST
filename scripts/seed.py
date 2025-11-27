@@ -2,8 +2,8 @@ import json
 import random
 from faker import Faker
 
-QTD_REGISTROS = 10000  
-QTD_USUARIOS = 50      
+QTD_REGISTROS = 10000000  
+QTD_USUARIOS = 1500      
 ARQUIVO_SAIDA = "database.json"
 
 fake = Faker()
