@@ -3,22 +3,27 @@ import time
 import csv
 import argparse
 import json
-import os  # <-- 1. Importar a biblioteca 'os'
+import os
 
-# Configura o analisador de argumentos da linha de comando
+
 analisador = argparse.ArgumentParser(description='Benchmark de performance REST vs GraphQL')
 analisador.add_argument('--modo', choices=['python', 'javascript'], required=True, help="Modo de linguagem (backend)")
 args = analisador.parse_args()
 
-# Define as URLs base com base no modo (python ou javascript)
+
+URL_BASE_REST = ""
+URL_GRAPHQL = ""
+
 if args.modo == 'python':
+
     URL_BASE_REST = "http://localhost:8080/rest/comments"
     URL_GRAPHQL = "http://localhost:8080/graphql"
-elif args.modo == 'javascript':
+else: 
+
     URL_BASE_REST = "http://localhost:3000/comments"
     URL_GRAPHQL = "http://localhost:3001/"
 
-# Endpoints REST a serem testados
+
 ENDPOINTS_REST = [
     {"nome": "todosComentarios", "url": URL_BASE_REST},
     {"nome": "comentarioPorId", "url": f"{URL_BASE_REST}/4"},
@@ -26,29 +31,31 @@ ENDPOINTS_REST = [
     {"nome": "comentariosPorPontuacaoMinima", "url": f"{URL_BASE_REST}/min-score/5"},
 ]
 
-# Consultas GraphQL a serem testadas
+
 CONSULTAS_GRAPHQL = [
     {"nome": "todosComentarios", "consulta": "{ allComments { id } }"},
-    {"nome": "comentarioPorId", "consulta": "query($id: ID!) { commentById(id: $id) { id } }", "variaveis": {"id": 4}},
+    {"nome": "comentarioPorId", "consulta": "query($id: ID!) { commentById(id: $id) { id } }", "variaveis": {"id": "4"}},
     {"nome": "comentariosPorUsuarioId", "consulta": "query($id: ID!) { commentsByUserId(id: $id) { id } }",
-     "variaveis": {"id": 13}},
+     "variaveis": {"id": "13"}},
     {"nome": "comentariosPorPontuacaoMinima", "consulta": "query($score: Int!) { commentsByMinScore(score: $score) { id } }",
      "variaveis": {"score": 5}},
 ]
 
-# Listas para armazenar os corpos das respostas (para cálculo de tamanho)
+
 respostas_graphql = []
 respostas_rest = []
 
 
 def contar_caracteres_json(array_json):
     string_json_combinada = json.dumps(array_json)
+
     return sum(1 for caractere in string_json_combinada if not caractere.isspace())
 
 def avaliar_desempenho_rest():
     resultados = []
     print("  - Avaliando REST...")
     for endpoint in ENDPOINTS_REST:
+        print(f"    -> Testando endpoint: {endpoint['nome']}")
         for _ in range(100):
             try:
                 inicio = time.time()
@@ -66,7 +73,7 @@ def avaliar_desempenho_rest():
                     print(f"    [Aviso] REST endpoint {endpoint['nome']} falhou com status {resposta.status_code}")
             except requests.exceptions.ConnectionError:
                 print(f"  [ERRO] Não foi possível conectar ao servidor REST em {endpoint['url']}. O servidor está rodando?")
-                return [] # Retorna lista vazia para parar a avaliação
+                return [] 
     return resultados
 
 
@@ -74,9 +81,11 @@ def avaliar_desempenho_graphql():
     resultados = []
     print("  - Avaliando GraphQL...")
     for item in CONSULTAS_GRAPHQL:
+        print(f"    -> Testando query: {item['nome']}")
         for _ in range(100):
             try:
                 inicio = time.time()
+ 
                 resposta = requests.post(URL_GRAPHQL, json={
                     "query": item["consulta"],
                     "variables": item.get("variaveis", {}),
@@ -84,17 +93,22 @@ def avaliar_desempenho_graphql():
                 fim = time.time()
 
                 if resposta.status_code == 200:
-                    respostas_graphql.append(resposta.json())
+                    r_json = resposta.json()
+                    # Verifica se o GraphQL retornou erros no corpo
+                    if 'errors' in r_json:
+                         print(f"    [Erro GraphQL] {r_json['errors'][0]['message']}")
+                    
+                    respostas_graphql.append(r_json)
                     resultados.append({
                         "consulta": item["nome"],
                         "status_code": resposta.status_code,
                         "tempo_resposta_ms": (fim - inicio) * 1000,
                     })
                 else:
-                     print(f"    [Aviso] GraphQL query {item['nome']} falhou com status {resposta.status_code}")
+                      print(f"    [Aviso] GraphQL query {item['nome']} falhou com status {resposta.status_code}")
             except requests.exceptions.ConnectionError:
                 print(f"  [ERRO] Não foi possível conectar ao servidor GraphQL em {URL_GRAPHQL}. O servidor está rodando?")
-                return [] # Retorna lista vazia para parar a avaliação
+                return [] 
     return resultados
 
 
@@ -108,14 +122,13 @@ def salvar_em_csv(nome_arquivo, dados, nomes_campos):
 # Bloco principal de execução
 if __name__ == "__main__":
     
-    # --- 2. Criar os diretórios de saída ANTES de rodar o benchmark ---
+    # Prepara diretórios
     print(f"Preparando diretórios de resultados para o modo: {args.modo}...")
     caminho_tempo = f"results/{args.modo}/response_time"
     caminho_tamanho = f"results/{args.modo}/response_size"
     
     os.makedirs(caminho_tempo, exist_ok=True)
     os.makedirs(caminho_tamanho, exist_ok=True)
-    # --- Fim do ajuste ---
 
     campos_tempo = ["consulta", "status_code", "tempo_resposta_ms"]
     campos_tamanho = ["protocolo", "tamanho_total_resposta"]
@@ -126,13 +139,12 @@ if __name__ == "__main__":
     
     if resultados_rest:
         salvar_em_csv(f"{caminho_tempo}/rest_results.csv", resultados_rest, campos_tempo)
-        print("  - Resultados de tempo do REST salvos.")
         
         salvar_em_csv(f"{caminho_tamanho}/rest_results.csv",
         [{"protocolo": "rest", "tamanho_total_resposta": contar_caracteres_json(respostas_rest)}],
             campos_tamanho
         )
-        print("  - Resultados de tamanho do REST salvos.")
+        print("  - Resultados REST salvos.")
     else:
         print("  - Avaliação REST pulada ou falhou.")
 
@@ -143,13 +155,12 @@ if __name__ == "__main__":
     
     if resultados_graphql:
         salvar_em_csv(f"{caminho_tempo}/graphql_results.csv", resultados_graphql, campos_tempo)
-        print("  - Resultados de tempo do GraphQL salvos.")
 
         salvar_em_csv(f"{caminho_tamanho}/graphql_results.csv",
         [{"protocolo": "graphql", "tamanho_total_resposta": contar_caracteres_json(respostas_graphql)}],
             campos_tamanho
         )
-        print("  - Resultados de tamanho do GraphQL salvos.")
+        print("  - Resultados GraphQL salvos.")
     else:
         print("  - Avaliação GraphQL pulada ou falhou.")
 

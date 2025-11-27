@@ -1,0 +1,14 @@
+{
+  "name": "apps",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "graphql": "node graphql.js",  
+    "rest": "node rest.js"
+  },
+  "dependencies": {
+    "@apollo/server": "^5.1.0",
+    "express": "^5.1.0"
+  },
+  "type": "commonjs"
+}

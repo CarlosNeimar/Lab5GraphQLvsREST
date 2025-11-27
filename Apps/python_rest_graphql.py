@@ -1,16 +1,20 @@
-from flask import Flask, jsonify
-from ariadne import gql, QueryType, make_executable_schema
-from ariadne.contrib.flask import GraphQL
+import json
+from flask import Flask, jsonify, request
+from ariadne import gql, QueryType, make_executable_schema, graphql_sync
+from ariadne.explorer import ExplorerGraphiQL
 
-COMMENTS_DATA = [
-    {"id": "1", "userId": "13", "score": 3, "text": "This is okay."},
-    {"id": "2", "userId": "10", "score": 8, "text": "Amazing!"},
-    {"id": "3", "userId": "13", "score": 9, "text": "My favorite one."},
-    {"id": "4", "userId": "11", "score": 5, "text": "Not bad."},
-    {"id": "5", "userId": "10", "score": 1, "text": "Terrible."},
-]
+# Carregamento da base de dados
+try:
+    with open('database.json', 'r', encoding='utf-8') as f:
+        COMMENTS_DATA = json.load(f)
+    print(f"[PY] Base de dados carregada com {len(COMMENTS_DATA)} registros.")
+except FileNotFoundError:
+    print("[PY] ERRO: Arquivo 'database.json' não encontrado. Rode o seed.py primeiro.")
+    COMMENTS_DATA = []
 
 app = Flask(__name__)
+
+# --- ENDPOINTS REST ---
 
 @app.route('/rest/comments', methods=['GET'])
 def rest_all_comments():
@@ -18,6 +22,7 @@ def rest_all_comments():
 
 @app.route('/rest/comments/<string:id>', methods=['GET'])
 def rest_comment_by_id(id):
+    # next() retorna o primeiro item encontrado ou None
     comment = next((c for c in COMMENTS_DATA if c['id'] == id), None)
     return jsonify(comment)
 
@@ -30,6 +35,8 @@ def rest_comments_by_user_id(user_id):
 def rest_comments_by_min_score(score):
     comments = [c for c in COMMENTS_DATA if c['score'] >= score]
     return jsonify(comments)
+
+# --- CONFIGURAÇÃO GRAPHQL ---
 
 type_defs = gql("""
     type Comment {
@@ -66,8 +73,31 @@ def resolve_comments_by_min_score(*_, score):
     return [c for c in COMMENTS_DATA if c['score'] >= score]
 
 schema = make_executable_schema(type_defs, query)
-GraphQL(app, schema, debug=True)
+
+# Interface Gráfica do GraphQL (Playground)
+explorer_html = ExplorerGraphiQL().html(None)
+
+# Rota única para GraphQL (GET para playground, POST para consultas)
+@app.route("/graphql", methods=["GET"])
+def graphql_playground():
+    return explorer_html, 200
+
+@app.route("/graphql", methods=["POST"])
+def graphql_server():
+    data = request.get_json()
+    success, result = graphql_sync(
+        schema,
+        data,
+        context_value=request,
+        debug=True
+    )
+    status_code = 200 if success else 400
+    return jsonify(result), status_code
+
+# --- INICIALIZAÇÃO DO SERVIDOR ---
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    # Usando o runner nativo do Flask para evitar conflitos WSGI/ASGI
+    # debug=False para o benchmark ser mais justo (menos overhead de debug)
+    print("[PY] Servidor rodando em http://localhost:8080")
+    app.run(host="0.0.0.0", port=8080, debug=False)
