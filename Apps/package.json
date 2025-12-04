@@ -1,14 +1,18 @@
 {
   "name": "apps",
   "version": "1.0.0",
+  "description": "",
+  "main": "node_graphql.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "graphql": "node graphql.js",  
-    "rest": "node rest.js"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "dependencies": {
-    "@apollo/server": "^5.1.0",
-    "express": "^5.1.0"
-  },
-  "type": "commonjs"
+    "apollo-server": "^3.13.0",
+    "cors": "^2.8.5",
+    "express": "^4.22.1",
+    "graphql": "^16.12.0"
+  }
 }
